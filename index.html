@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CS · NPS 주차별 대시보드</title>
+<style>
+  :root{
+    --bg:#F3F4F6;
+    --card:#FFFFFF;
+    --text:#111827;
+    --sub:#6B7280;
+    --border:#E5E7EB;
+    --lg-red:#C10933;
+    --lg-red-soft:#F8D7DE;
+    --blue:#1F6FEB;
+    --green:#10B981;
+    --shadow:0 2px 8px rgba(17,24,39,.06), 0 8px 24px rgba(17,24,39,.06);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:"Pretendard","Malgun Gothic","Segoe UI",system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1240px;margin:0 auto;padding:28px 20px 48px;}
+  header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px;}
+  .title-block h1{margin:0;font-size:22px;letter-spacing:-.2px;}
+  .title-block p{margin:6px 0 0;color:var(--sub);font-size:13px;}
+  .brand{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:var(--lg-red);color:#fff;font-weight:700;font-size:12px;letter-spacing:.4px;}
+  .brand::before{content:"";width:8px;height:8px;border-radius:50%;background:#fff;}
+
+  /* KPI grid */
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px;}
+  @media (max-width:900px){.kpi-grid{grid-template-columns:repeat(2,1fr);}}
+  @media (max-width:520px){.kpi-grid{grid-template-columns:1fr;}}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow);}
+  .kpi{position:relative;overflow:hidden;}
+  .kpi .label{color:var(--sub);font-size:13px;font-weight:500;margin-bottom:8px;display:flex;align-items:center;gap:8px;}
+  .kpi .value{font-size:30px;font-weight:800;letter-spacing:-.5px;}
+  .kpi .unit{font-size:13px;color:var(--sub);margin-left:4px;font-weight:600;}
+  .kpi .sub{margin-top:6px;font-size:12px;color:var(--sub);}
+  .kpi .icon{width:34px;height:34px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;
+    background:var(--lg-red-soft);color:var(--lg-red);font-weight:800;font-size:15px;}
+  .kpi.accent-bar::after{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--lg-red);}
+
+  /* Chart cards */
+  .charts{display:grid;grid-template-columns:1fr;gap:16px;}
+  .chart-card h3{margin:0 0 4px;font-size:16px;}
+  .chart-card .desc{margin:0 0 14px;color:var(--sub);font-size:12.5px;}
+  .chart-wrap{position:relative;width:100%;}
+  svg{display:block;width:100%;height:auto;overflow:visible;}
+  .axis text{fill:var(--sub);font-size:12px;}
+  .axis line, .axis path{stroke:#D1D5DB;stroke-width:1;}
+  .grid line{stroke:#E5E7EB;stroke-dasharray:3 4;}
+  .bar{fill:#1F6FEB;transition:opacity .15s ease, filter .15s ease;}
+  .bar.low{fill:var(--lg-red);}
+  .bar:hover{filter:brightness(1.05);opacity:.92;}
+  .bar-label{font-size:11.5px;fill:#374151;font-weight:600;}
+  .line-path{fill:none;stroke:var(--lg-red);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;}
+  .area-path{fill:url(#areaFill);opacity:.55;}
+  .dot{fill:#fff;stroke:var(--lg-red);stroke-width:2.2;transition:r .15s ease;}
+  .dot:hover{r:7;}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--sub);margin-top:6px;}
+  .legend .sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:middle;}
+
+  /* Tooltip */
+  .tooltip{position:absolute;pointer-events:none;background:#111827;color:#fff;font-size:12px;
+    padding:8px 10px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.18);
+    transform:translate(-50%, -120%);opacity:0;transition:opacity .12s ease;white-space:nowrap;z-index:5;}
+  .tooltip::after{content:"";position:absolute;left:50%;bottom:-5px;transform:translateX(-50%);
+    border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid #111827;}
+  .tooltip.on{opacity:1;}
+  .tooltip .t-title{font-weight:700;margin-bottom:2px;}
+  .tooltip .t-row{opacity:.95;}
+  .tooltip .t-em{color:#FCA5A5;font-weight:700;}
+
+  footer{margin-top:26px;color:var(--sub);font-size:12px;text-align:right;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="title-block">
+      <h1>주차별 CS · NPS 대시보드</h1>
+      <p>2026년 18~25주차 접수 기준 · 총 1,000건 로우 데이터 요약</p>
+    </div>
+    <span class="brand">LG · Customer Experience</span>
+  </header>
+
+  <!-- KPI 카드 -->
+  <section class="kpi-grid" id="kpi-grid"></section>
+
+  <!-- 차트 -->
+  <section class="charts">
+    <div class="card chart-card">
+      <h3>제품 카테고리별 평균 NPS 점수</h3>
+      <p class="desc">가장 낮은 카테고리는 <b style="color:var(--lg-red)">LG 레드</b>로 강조 표시됩니다. 막대에 마우스를 올리면 상세 수치가 표시됩니다.</p>
+      <div class="chart-wrap" id="barWrap">
+        <svg id="barChart" viewBox="0 0 900 380" preserveAspectRatio="xMidYMid meet" role="img" aria-label="제품별 평균 NPS 막대 차트"></svg>
+        <div class="tooltip" id="barTip"></div>
+      </div>
+      <div class="legend">
+        <span><span class="sw" style="background:#1F6FEB"></span>일반 카테고리</span>
+        <span><span class="sw" style="background:#C10933"></span>최저 NPS (개선 우선)</span>
+      </div>
+    </div>
+
+    <div class="card chart-card">
+      <h3>주차별 접수건수 추이 (19주차 ~ 25주차)</h3>
+      <p class="desc">주차별 CS 접수건수의 추이입니다. 점 위에 마우스를 올리면 세부 건수를 볼 수 있습니다.</p>
+      <div class="chart-wrap" id="lineWrap">
+        <svg id="lineChart" viewBox="0 0 900 360" preserveAspectRatio="xMidYMid meet" role="img" aria-label="주차별 접수건수 꺾은선 차트"></svg>
+        <div class="tooltip" id="lineTip"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>© LG Electronics · 해외법인고객경험혁신Task · Prepared by 박경빈</footer>
+</div>
+
+<script>
+/* ============================================================
+   1) 사전 집계된 데이터 (원본 1,000행에서 계산)
+   ============================================================ */
+const KPIS = {
+  total:       1000,
+  completed:   972,
+  avgDuration: 3.21,   // '소요시간(일)' 평균 (결측 제외)
+  avgNPS:      8.18    // 'NPS 점수(0-10)' 평균 (결측 제외)
+};
+
+// 제품 카테고리별 평균 NPS (전체 데이터 기준)
+const PRODUCT_NPS = [
+  { name: "올레드 TV",     value: 8.72, n: 141 },
+  { name: "트롬 세탁기",   value: 8.63, n: 134 },
+  { name: "오브제 청소기", value: 8.60, n: 141 },
+  { name: "디오스 냉장고", value: 8.56, n: 131 },
+  { name: "그램 노트북",   value: 8.47, n: 155 },
+  { name: "프라엘 뷰티",   value: 8.23, n: 124 },
+  { name: "휘센 에어컨",   value: 6.16, n: 146 }
+];
+
+// 주차별 접수건수 (요건: 19~25주차)
+const WEEKLY = [
+  { week: "19주차", count: 149 },
+  { week: "20주차", count: 156 },
+  { week: "21주차", count: 150 },
+  { week: "22주차", count: 154 },
+  { week: "23주차", count: 141 },
+  { week: "24주차", count: 158 },
+  { week: "25주차", count: 26  }
+];
+
+/* ============================================================
+   2) KPI 카드 렌더링
+   ============================================================ */
+(function renderKPI(){
+  const items = [
+    { label:"총 접수건수",    value: KPIS.total.toLocaleString(),      unit:"건",  icon:"接", sub:"전체 로우 데이터"},
+    { label:"완료건수",       value: KPIS.completed.toLocaleString(),  unit:"건",  icon:"完",
+      sub:`완료율 ${((KPIS.completed/KPIS.total)*100).toFixed(1)}%`},
+    { label:"평균 처리일수",  value: KPIS.avgDuration.toFixed(2),      unit:"일",  icon:"日", sub:"소요시간(일) 평균"},
+    { label:"평균 NPS 점수",  value: KPIS.avgNPS.toFixed(2),           unit:"/10", icon:"★",  sub:"고객 만족도 지표"}
+  ];
+  const host = document.getElementById("kpi-grid");
+  host.innerHTML = items.map((k,i)=>`
+    <div class="card kpi ${i===3 ? 'accent-bar' : ''}">
+      <div class="label"><span class="icon">${k.icon}</span>${k.label}</div>
+      <div class="value">${k.value}<span class="unit">${k.unit}</span></div>
+      <div class="sub">${k.sub}</div>
+    </div>
+  `).join("");
+})();
+
+/* ============================================================
+   3) 유틸: 툴팁
+   ============================================================ */
+function bindTip(hostSelector, tipId){
+  const host = document.querySelector(hostSelector);
+  const tip = document.getElementById(tipId);
+  return {
+    show(evt, html){
+      const rect = host.getBoundingClientRect();
+      tip.innerHTML = html;
+      tip.style.left = (evt.clientX - rect.left) + "px";
+      tip.style.top  = (evt.clientY - rect.top)  + "px";
+      tip.classList.add("on");
+    },
+    move(evt){
+      const rect = host.getBoundingClientRect();
+      tip.style.left = (evt.clientX - rect.left) + "px";
+      tip.style.top  = (evt.clientY - rect.top)  + "px";
+    },
+    hide(){ tip.classList.remove("on"); }
+  };
+}
+
+/* ============================================================
+   4) SVG 막대 차트: 제품별 평균 NPS
+   ============================================================ */
+(function renderBar(){
+  const svg = document.getElementById("barChart");
+  const W = 900, H = 380;
+  const M = { top: 20, right: 24, bottom: 60, left: 46 };
+  const iw = W - M.left - M.right;
+  const ih = H - M.top - M.bottom;
+
+  const data = PRODUCT_NPS.slice(); // 원본 순서 유지
+  const minVal = Math.min(...data.map(d => d.value));
+  const yMax = 10;
+
+  // Y 축 눈금
+  const yTicks = [0,2,4,6,8,10];
+  const yScale = v => M.top + ih - (v / yMax) * ih;
+
+  // X 위치
+  const bandW = iw / data.length;
+  const barW  = Math.min(72, bandW * 0.55);
+
+  let s = "";
+
+  // 그리드 & Y축
+  s += `<g class="grid">`;
+  yTicks.forEach(t=>{
+    const y = yScale(t);
+    s += `<line x1="${M.left}" x2="${M.left+iw}" y1="${y}" y2="${y}"/>`;
+  });
+  s += `</g>`;
+
+  s += `<g class="axis">`;
+  yTicks.forEach(t=>{
+    const y = yScale(t);
+    s += `<text x="${M.left-8}" y="${y+4}" text-anchor="end">${t}</text>`;
+  });
+  s += `<line x1="${M.left}" x2="${M.left+iw}" y1="${M.top+ih}" y2="${M.top+ih}"/>`;
+  s += `</g>`;
+
+  // 막대
+  data.forEach((d,i)=>{
+    const cx = M.left + bandW*i + bandW/2;
+    const x  = cx - barW/2;
+    const y  = yScale(d.value);
+    const h  = M.top + ih - y;
+    const isLow = d.value === minVal;
+    s += `
+      <g class="bar-g" data-name="${d.name}" data-val="${d.value}" data-n="${d.n}" data-low="${isLow}">
+        <rect class="bar ${isLow?'low':''}" x="${x}" y="${y}" width="${barW}" height="${h}" rx="6"></rect>
+        <text class="bar-label" x="${cx}" y="${y-6}" text-anchor="middle" ${isLow?'fill="#C10933"':''}>${d.value.toFixed(2)}</text>
+        <text class="axis" x="${cx}" y="${M.top+ih+22}" text-anchor="middle" fill="#374151" font-size="12" ${isLow?'font-weight="700"':''}>${d.name}</text>
+        ${isLow ? `<text x="${cx}" y="${M.top+ih+40}" text-anchor="middle" font-size="11" fill="#C10933" font-weight="700">▼ 최저</text>`:''}
+      </g>`;
+  });
+
+  // Y축 라벨
+  s += `<text x="${M.left-30}" y="${M.top+ih/2}" text-anchor="middle" transform="rotate(-90 ${M.left-30},${M.top+ih/2})" fill="#6B7280" font-size="12">평균 NPS (0~10)</text>`;
+
+  svg.innerHTML = s;
+
+  // 툴팁 바인딩
+  const tip = bindTip("#barWrap", "barTip");
+  svg.querySelectorAll(".bar-g").forEach(g=>{
+    const rect = g.querySelector("rect");
+    const name = g.dataset.name;
+    const val  = parseFloat(g.dataset.val).toFixed(2);
+    const n    = g.dataset.n;
+    const low  = g.dataset.low === "true";
+    const html = `
+      <div class="t-title">${name}</div>
+      <div class="t-row">평균 NPS: <b>${val}</b> / 10</div>
+      <div class="t-row">응답 건수: ${Number(n).toLocaleString()}건</div>
+      ${low ? '<div class="t-em">▼ 카테고리 중 최저 · 개선 우선</div>':''}`;
+    rect.addEventListener("mouseenter", e => tip.show(e, html));
+    rect.addEventListener("mousemove",  e => tip.move(e));
+    rect.addEventListener("mouseleave", () => tip.hide());
+  });
+})();
+
+/* ============================================================
+   5) SVG 꺾은선 차트: 주차별 접수건수
+   ============================================================ */
+(function renderLine(){
+  const svg = document.getElementById("lineChart");
+  const W = 900, H = 360;
+  const M = { top: 24, right: 30, bottom: 44, left: 46 };
+  const iw = W - M.left - M.right;
+  const ih = H - M.top - M.bottom;
+
+  const data = WEEKLY.slice();
+  const maxVal = Math.max(...data.map(d=>d.count));
+  // Nice Y max (round up to nearest 20)
+  const yMax = Math.ceil(maxVal / 20) * 20 || 20;
+  const yTicks = 5;
+
+  const stepX = iw / (data.length - 1);
+  const xAt = i => M.left + stepX * i;
+  const yAt = v => M.top + ih - (v / yMax) * ih;
+
+  let s = "";
+
+  // Gradient for area
+  s += `
+    <defs>
+      <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%"  stop-color="#C10933" stop-opacity="0.35"/>
+        <stop offset="100%" stop-color="#C10933" stop-opacity="0.02"/>
+      </linearGradient>
+    </defs>`;
+
+  // Grid & Y axis
+  s += `<g class="grid">`;
+  for(let i=0;i<=yTicks;i++){
+    const v = (yMax / yTicks) * i;
+    const y = yAt(v);
+    s += `<line x1="${M.left}" x2="${M.left+iw}" y1="${y}" y2="${y}"/>`;
+  }
+  s += `</g>`;
+
+  s += `<g class="axis">`;
+  for(let i=0;i<=yTicks;i++){
+    const v = (yMax / yTicks) * i;
+    const y = yAt(v);
+    s += `<text x="${M.left-8}" y="${y+4}" text-anchor="end">${Math.round(v)}</text>`;
+  }
+  s += `<line x1="${M.left}" x2="${M.left+iw}" y1="${M.top+ih}" y2="${M.top+ih}"/>`;
+  // X labels
+  data.forEach((d,i)=>{
+    s += `<text x="${xAt(i)}" y="${M.top+ih+22}" text-anchor="middle" fill="#374151" font-size="12">${d.week}</text>`;
+  });
+  s += `</g>`;
+
+  // Area path
+  let area = `M ${xAt(0)} ${M.top+ih} `;
+  data.forEach((d,i)=>{ area += `L ${xAt(i)} ${yAt(d.count)} `; });
+  area += `L ${xAt(data.length-1)} ${M.top+ih} Z`;
+  s += `<path class="area-path" d="${area}"/>`;
+
+  // Line path
+  let line = "";
+  data.forEach((d,i)=>{
+    line += (i===0 ? "M ":"L ") + xAt(i) + " " + yAt(d.count) + " ";
+  });
+  s += `<path class="line-path" d="${line}"/>`;
+
+  // Dots + labels
+  data.forEach((d,i)=>{
+    const cx = xAt(i), cy = yAt(d.count);
+    s += `<g class="dot-g" data-week="${d.week}" data-count="${d.count}">
+            <circle class="dot" cx="${cx}" cy="${cy}" r="5"></circle>
+            <text x="${cx}" y="${cy-12}" text-anchor="middle" font-size="11.5" font-weight="700" fill="#111827">${d.count}</text>
+          </g>`;
+  });
+
+  // Y label
+  s += `<text x="${M.left-30}" y="${M.top+ih/2}" text-anchor="middle" transform="rotate(-90 ${M.left-30},${M.top+ih/2})" fill="#6B7280" font-size="12">접수건수 (건)</text>`;
+
+  svg.innerHTML = s;
+
+  // Tooltip
+  const tip = bindTip("#lineWrap", "lineTip");
+  const total = data.reduce((a,b)=>a+b.count,0);
+  svg.querySelectorAll(".dot-g").forEach(g=>{
+    const dot = g.querySelector("circle");
+    const week = g.dataset.week;
+    const cnt  = parseInt(g.dataset.count,10);
+    const share = ((cnt/total)*100).toFixed(1);
+    const html = `
+      <div class="t-title">${week}</div>
+      <div class="t-row">접수: <b>${cnt.toLocaleString()}</b>건</div>
+      <div class="t-row">기간 내 비중: ${share}%</div>`;
+    dot.addEventListener("mouseenter", e=>{ dot.setAttribute("r","7"); tip.show(e, html); });
+    dot.addEventListener("mousemove",  e=> tip.move(e));
+    dot.addEventListener("mouseleave", ()=>{ dot.setAttribute("r","5"); tip.hide(); });
+  });
+})();
+</script>
+</body>
+</html>
